@@ -94,21 +94,26 @@ int main() {
 
     BootSector boot;
 
-    // 파일 시작
+    // 파일 시작으로 이동
     source.seekg(ios::beg);
 
     source.read((char*)&boot, sizeof(BootSector));
 
+    /*
     printf("jump code: ");
     for (int i = 0; i < 3; i++)
         printf("%02X ", boot.jump_code[i]);
     putchar('\n');
+    */
 
+    /*
     printf("oem id:: ");
     for (int i = 0; i < 8; i++)
         printf("%02X ", boot.oem_id[i]);
     putchar('\n');
+    */
 
+    
     printf("byte per sector: ");
     for(int i=0;i<2;i++)
         printf("%02X ", boot.byte_per_sector[i]);
@@ -118,15 +123,18 @@ int main() {
 
     printf("MFT start cluster: %llX\n", boot.mft_start_cluster);
 
+    /*
     int32_t tmp = boot.cluster_per_entry;
     tmp = ~tmp + 1 + 256;
-    printf("clusters per MFT entry: %d\n", int(std::pow(2, tmp)));
+    printf("clusters per MFT entry: %d byte\n", int(std::pow(2, tmp)));
+    */ 
 
     
     // MFT #0 주소 계산
     int64_t mft_start_offset = boot.mft_start_cluster * boot.sector_per_cluster * 0x200;
-    printf("MFT start offset: %llX * %02x * 0x200 = %llX\n", boot.mft_start_cluster, boot.sector_per_cluster, mft_start_offset);
-    printf("%llX\n", mft_start_offset);
+    putchar('\n');
+    printf("address of MFT #0: %llX * %02x * 0x200 = %llX\n", boot.mft_start_cluster, boot.sector_per_cluster, mft_start_offset);
+    // printf("%llX\n", mft_start_offset);
 
     // MFT #0으로 이동
     source.seekg(mft_start_offset);
@@ -134,10 +142,12 @@ int main() {
     MFTHeader mftheader;
     source.read((char*)&mftheader, sizeof(MFTHeader));
 
+    /*
     printf("MFT header Signature: %X\n", mftheader.signature);
     printf("MFT fixupArray offset: %X\n", mftheader.fixarr_offset);
     printf("MFT fixupArray Entries: %X\n", mftheader.fixarr_entries);
     printf("file attribute offset: %X\n", mftheader.file_attr_offset);
+    */
 
     // fixupArray 오프셋으로 이동
     source.seekg(mft_start_offset + mftheader.fixarr_offset);
@@ -146,6 +156,7 @@ int main() {
     uint16_t* fixupArr = new uint16_t[mftheader.fixarr_entries];
     source.read((char*)fixupArr, sizeof(uint16_t) * 3);
 
+    printf("fixup Array(before): ");
     for (int i = 0; i < mftheader.fixarr_entries; i++)
         printf("%04X ", fixupArr[i]);
     putchar('\n');
@@ -176,6 +187,7 @@ int main() {
     uint16_t* fixupArrPost = new uint16_t[mftheader.fixarr_entries];
     source.seekg(mft_start_offset + mftheader.fixarr_offset);
     source.read((char*)fixupArr, sizeof(uint16_t) * 3);
+    printf("fixup Array(after): ");
     for (int i = 0; i < mftheader.fixarr_entries; i++)
         printf("%04X ", fixupArr[i]);
     putchar('\n');
@@ -190,22 +202,23 @@ int main() {
     COMMON_HEADER common;
     source.read((char*)&common, sizeof(COMMON_HEADER));
     // $DATA 영역까지 찾기
+    putchar('\n');
     puts("seek for $DATA area...");
     while (common.attr_type_id != 0x80) {
-        printf("attribute id: %X\n", common.attr_type_id);
-        printf("attribute length: %X\n", common.attr_length);
+        printf("attribute id: 0x%X\n", common.attr_type_id);
+        printf("attribute length: 0x%X\n", common.attr_length);
         attr_offset += common.attr_length;
         source.seekg(attr_offset);
         source.read((char*)&common, sizeof(COMMON_HEADER));
     }
 
-    printf("attribute id: %X\n", common.attr_type_id);
-    printf("attribute length: %X\n", common.attr_length);
+    printf("attribute id: 0x%X\n", common.attr_type_id);
+    printf("attribute length: 0x%X\n", common.attr_length);
 
     NON_RESIDENT_HEADER non_resident;
     source.read((char*)&non_resident, sizeof(NON_RESIDENT_HEADER));
-    printf("start VCN of runlist: %llX\n", non_resident.start_runlist_vcn);
-    printf("end VCN of runlist: %llX\n", non_resident.end_runlist_vcn);
+    // printf("start VCN of runlist: %llX\n", non_resident.start_runlist_vcn);
+    // printf("end VCN of runlist: %llX\n", non_resident.end_runlist_vcn);
 
     uint64_t runlist_start = attr_offset + non_resident.runlist_offset;
     printf("runlist offset: %02X\n", non_resident.runlist_offset);
@@ -218,17 +231,17 @@ int main() {
     while(true) {
         source.read((char*)&info, sizeof(uint8_t));
         if (info == 0x00) break;
-        printf("%02X\n", info);
+        // printf("%02X\n", info);
         int run_leng_byte = info & 0x0F;
         int run_offset_byte = (info >> 4) & 0x0F;
-        printf("%d %d\n", run_leng_byte, run_offset_byte);
+        printf("run offset: %d, run length: %d\n", run_leng_byte, run_offset_byte);
 
         // source.read((char*)&run_leng, run_leng_byte);
         // source.read((char*)&run_offset, run_offset_byte);
         run_leng = readVariableLength<uint32_t>(source, run_leng_byte);
         run_offset = readVariableLength<uint32_t>(source, run_offset_byte);
-        printf("cluster start: %d\n", run_offset);
-        printf("size: %d\n", run_leng);
+        printf("cluster start: %d, size: %d\n", run_offset, run_leng);
+        //printf("size: %d\n", run_leng);
     }
 
     
